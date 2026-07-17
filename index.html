@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pantry Supply Automation — Power Apps UX Concept</title>
+<style>
+  :root{
+    --brand:#0067B1; --brand2:#1b7fc4; --bg:#F3F5F7; --card:#fff; --ink:#252A30;
+    --muted:#5a6470; --line:#e1e5e9; --ok:#107c10; --warn:#c87b00; --bad:#a4262c;
+    --blue:#3E5C76; --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--brand);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header .logo{background:#fff2;border-radius:8px;padding:6px 10px;font-weight:700;font-size:13px}
+  header h1{font-size:17px;font-weight:600}
+  header .sub{font-size:12px;opacity:.85}
+  nav{background:#fff;border-bottom:1px solid var(--line);display:flex;gap:4px;padding:0 16px;overflow-x:auto}
+  nav button{border:0;background:none;padding:13px 16px;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit}
+  nav button.active{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+  main{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+  .tab{display:none}.tab.active{display:block}
+  .grid{display:grid;gap:16px}
+  .cols-2{grid-template-columns:1fr 1fr}
+  @media(max-width:900px){.cols-2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .card h2{font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h2 .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:2px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line)}
+  .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11.5px;font-weight:600}
+  .b-ok{background:#e6f4e6;color:var(--ok)} .b-warn{background:#fdf3e0;color:var(--warn)}
+  .b-bad{background:#fde7e9;color:var(--bad)} .b-blue{background:#e5f1fb;color:var(--blue)}
+  .verify{background:#e9f1f8;border:1px solid #c9dcec;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;color:var(--ink)}
+  label{display:block;font-size:12.5px;font-weight:600;margin:10px 0 4px}
+  select,input{width:100%;padding:9px 10px;border:1px solid #b5b3b1;border-radius:6px;font-size:14px;font-family:inherit;background:#fff}
+  .btn{background:var(--brand);color:#fff;border:0;border-radius:6px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;margin-top:14px;font-family:inherit}
+  .btn:hover{background:var(--brand2)}
+  .btn-sm{padding:5px 12px;font-size:12px;margin:0}
+  .btn-ghost{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .feed{list-style:none;font-size:12.5px;max-height:220px;overflow-y:auto}
+  .feed li{padding:7px 0;border-bottom:1px dashed var(--line);line-height:1.45}
+  .feed .t{color:var(--muted);font-size:11px}
+  /* chat */
+  .chat{display:flex;flex-direction:column;height:420px}
+  .chatlog{flex:1;overflow-y:auto;padding:6px 2px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:85%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.5;white-space:pre-line}
+  .msg.user{align-self:flex-end;background:var(--brand);color:#fff;border-bottom-right-radius:3px}
+  .msg.bot{align-self:flex-start;background:#e9f1f8;border-bottom-left-radius:3px}
+  .chatrow{display:flex;gap:8px;margin-top:10px}
+  .chatrow input{flex:1}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{background:#e9f1f8;border:1px solid #c9dcec;border-radius:14px;padding:4px 11px;font-size:11.5px;cursor:pointer;color:var(--brand)}
+  /* modal */
+  .overlay{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .overlay.show{display:flex}
+  .mail{background:#fff;border-radius:var(--radius);max-width:620px;width:100%;padding:22px;max-height:90vh;overflow-y:auto}
+  .mail h3{font-size:15px;margin-bottom:10px}
+  .mailhead{font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:12px;line-height:1.7}
+  .mailbody{font-size:13px;line-height:1.6}
+  .mailbody table{margin:10px 0}
+  /* architecture */
+  .layer{border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;border:1px solid var(--line);background:#fff}
+  .layer h3{font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+  .boxes{display:flex;gap:10px;flex-wrap:wrap}
+  .box{background:#f8fafc;border:1.5px solid #c9dcec;border-radius:8px;padding:10px 14px;font-size:12.5px;flex:1;min-width:150px;line-height:1.45}
+  .box b{display:block;color:var(--brand);margin-bottom:3px;font-size:13px}
+  .arrowline{text-align:center;color:var(--muted);font-size:18px;margin:-6px 0 8px}
+  .l1{border-top:4px solid var(--brand)} .l2{border-top:4px solid var(--blue)}
+  .l3{border-top:4px solid var(--ok)} .l4{border-top:4px solid #7a6ea8} .l5{border-top:4px solid var(--warn)}
+  .note{background:#faf6ee;border:1px solid #eadfc8;border-radius:8px;padding:12px 14px;font-size:12.5px;line-height:1.55;margin-top:14px}
+  footer{text-align:center;font-size:11.5px;color:var(--muted);padding:18px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Concept Prototype</div>
+  <div>
+    <h1>Pantry Supply Automation — Power Apps UX Concept</h1>
+    <div class="sub">Simulated end-to-end flow · Demo data only · Case study by Dajana Morak</div>
+  </div>
+</header>
+<nav>
+  <button class="active" data-tab="demo">📱 App Demo</button>
+  <button data-tab="arch">🏗 Architecture</button>
+</nav>
+<main>
+
+<!-- ================= DEMO ================= -->
+<section class="tab active" id="tab-demo">
+  <div class="grid cols-2">
+    <div class="card">
+      <h2><span class="dot"></span>Inventory (SharePoint list: <i>Inventory</i>)</h2>
+      <div class="verify">🕘 Inventory last verified: <b>17 Jul 2026, 09:15</b> by Office Management</div>
+      <table id="invTable">
+        <thead><tr><th>Item</th><th>Stock</th><th>Reorder point</th><th>Unit €</th><th>Last updated</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="hint">A scheduled Power Automate flow checks stock against the reorder point daily and creates an order proposal when stock falls below it. On unreliable data, automation degrades to assisted ordering and human verification.</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>New Supply Request (Power Apps form)</h2>
+      <label for="reqItem">Item</label>
+      <select id="reqItem"></select>
+      <label for="reqQty">Quantity (units)</label>
+      <input type="number" id="reqQty" value="20" min="1">
+      <label for="reqBy">Requested by</label>
+      <select id="reqBy"><option>Employee — M. Weber</option><option>Employee — S. Klein</option><option>Office Manager — A. Roth</option></select>
+      <button class="btn" onclick="submitRequest()">Submit request</button>
+      <p class="hint"><b>Illustrative approval thresholds — configurable as data, not hard-coded:</b> &lt; €100 auto-approved · €100–499 → Office Manager · ≥ €500 → Cost Center Owner. Actual values are decided by the business owner.</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>Approval &amp; order queue (Power Automate)</h2>
+      <table id="aprTable">
+        <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Value</th><th>Approver</th><th>Status</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="hint">Approving an order generates the structured supplier email and sets the order to <b>Ordered</b>. <b>Confirm receipt</b> adds the delivered quantity to stock and writes the audit entry — closing the loop: request → approval → order → receipt → inventory update.</p>
+    </div>
+
+    <div class="card">
+      <h2><span class="dot"></span>Read-only Pantry Assistant — MVP</h2>
+      <div class="chat">
+        <div class="chatlog" id="chatlog">
+          <div class="msg bot">Hi! I answer questions about stock levels, orders and approvals — read-only, grounded on validated inventory and order data. I do not place orders or modify records. 👇</div>
+        </div>
+        <div class="chips">
+          <span class="chip" onclick="ask('Which items are below their reorder point?')">Below reorder point?</span>
+          <span class="chip" onclick="ask('What is the stock of coffee?')">Stock of coffee?</span>
+          <span class="chip" onclick="ask('What was the last order?')">Last order?</span>
+          <span class="chip" onclick="ask('Any pending approvals?')">Pending approvals?</span>
+        </div>
+        <div class="chatrow">
+          <input id="chatIn" placeholder="Ask about stock, orders, approvals…" onkeydown="if(event.key==='Enter')ask()">
+          <button class="btn btn-sm" style="margin:0" onclick="ask()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2><span class="dot"></span>Notifications &amp; audit history</h2>
+    <ul class="feed" id="feed"></ul>
+  </div>
+</section>
+
+<!-- ================= ARCHITECTURE ================= -->
+<section class="tab" id="tab-arch">
+  <div class="card">
+    <h2><span class="dot"></span>High-level target architecture — Power Platform</h2>
+    <div class="layer l1">
+      <h3>1 · Experience</h3>
+      <div class="boxes">
+        <div class="box"><b>Power Apps (Canvas)</b>Request submission · inventory view · approval status — target implementation of this UX concept</div>
+        <div class="box"><b>Read-only Pantry Assistant</b>Read-only assistant grounded on validated inventory and order data (Copilot Studio). <b>AI assists, but does not order or modify records.</b></div>
+        <div class="box"><b>Teams / Outlook</b>Notifications: approvals, low stock, order status</div>
+      </div>
+    </div>
+    <div class="arrowline">▼</div>
+    <div class="layer l2">
+      <h3>2 · Automation — Power Automate</h3>
+      <div class="boxes">
+        <div class="box"><b>Flow 1 · Low-stock detection</b>Scheduled daily · stock &lt; reorder point → order proposal</div>
+        <div class="box"><b>Flow 2 · Approval routing</b>Threshold-based: auto / Office Mgr / Cost Center Owner — thresholds configurable as data</div>
+        <div class="box"><b>Flow 3 · Supplier order</b>Structured PO email with order table &amp; PO number</div>
+        <div class="box"><b>Flow 4 · Receipt &amp; stock update</b>Confirmation → stock += qty · audit entry</div>
+      </div>
+    </div>
+    <div class="arrowline">▼</div>
+    <div class="layer l3">
+      <h3>3 · Data — SharePoint lists</h3>
+      <div class="boxes">
+        <div class="box"><b>Inventory</b>Item, stock, reorder point, unit cost, location, last verified</div>
+        <div class="box"><b>Requests / Orders</b>Full lifecycle incl. status history</div>
+        <div class="box"><b>Suppliers</b>Contact, items, lead time</div>
+        <div class="box"><b>Config &amp; Audit</b>Approval thresholds as data · controlled audit and status history (versioned, restricted access)</div>
+      </div>
+      <p class="hint">Location-aware data model reduces future rework. Multi-site rollout requires a separate operating-model and platform assessment. Documented migration path to <b>Dataverse</b> when scale or complexity requires it.</p>
+    </div>
+    <div class="arrowline">▼</div>
+    <div class="layer l4">
+      <h3>4 · Integration</h3>
+      <div class="boxes">
+        <div class="box"><b>Outlook (standard connector)</b>Email-based supplier communication — matches supplier maturity; confirmation by reply referencing the PO number</div>
+        <div class="box"><b>Microsoft Entra ID</b>Identity &amp; role-based access for requesters, approvers, admins</div>
+        <div class="box"><b>Connection identity</b>Dedicated connection or service identity where permitted by organizational policy</div>
+      </div>
+    </div>
+    <div class="arrowline">▼</div>
+    <div class="layer l5">
+      <h3>5 · Governance</h3>
+      <div class="boxes">
+        <div class="box"><b>Environments</b>Dev → Test → Prod</div>
+        <div class="box"><b>ALM</b>Solutions + deployment pipelines</div>
+        <div class="box"><b>DLP policies</b>Allowed connectors defined</div>
+        <div class="box"><b>Approval logic as data</b>Business owners change thresholds — not developers</div>
+      </div>
+    </div>
+    <div class="note"><b>Assumptions and trade-offs:</b> SharePoint possible for a faster MVP, subject to existing tenant licensing and security requirements · email-based supplier communication (integration would be over-engineering at current supplier maturity) · assistant is read-only in the MVP. <b>Phase 2 (deliberately deferred):</b> write access, autonomous actions, recommendations, demand forecasting, and more complex conversational scenarios — enabled only once data quality and governance gates are met.</div>
+  </div>
+</section>
+</main>
+
+<div class="overlay" id="mailOverlay" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="mail">
+    <h3>📧 Supplier order email (generated by Flow 3)</h3>
+    <div class="mailhead" id="mailHead"></div>
+    <div class="mailbody" id="mailBody"></div>
+    <button class="btn btn-ghost" onclick="document.getElementById('mailOverlay').classList.remove('show')">Close</button>
+  </div>
+</div>
+
+<footer>Concept prototype for case-study presentation · simulated data, no backend · hosted on Cloudflare Pages</footer>
+
+<script>
+const inv = [
+  {item:"Coffee beans (1kg)", stock:4,  thr:10, cost:14.5, upd:"Today, 09:15"},
+  {item:"Oat milk (1L)",      stock:18, thr:12, cost:2.2,  upd:"Today, 09:15"},
+  {item:"Sparkling water (6-pack)", stock:9, thr:15, cost:3.9, upd:"Today, 09:15"},
+  {item:"Granola bars (box)", stock:22, thr:8,  cost:11.0, upd:"Yesterday, 16:40"},
+  {item:"Tea assortment (box)", stock:3, thr:6, cost:8.5,  upd:"Today, 09:15"},
+  {item:"Fresh fruit (crate)", stock:2, thr:5,  cost:24.0, upd:"Today, 09:15"},
+];
+let orders = [
+  {id:1041, item:"Coffee beans (1kg)", qty:20, value:290, approver:"Office Manager", status:"Ordered", date:"2026-07-14"},
+  {id:1042, item:"Sparkling water (6-pack)", qty:30, value:117, approver:"Office Manager", status:"Pending", date:"2026-07-16"},
+];
+let nextId = 1043;
+const feed = [];
+
+function status(i){ if(i.stock < i.thr*0.5) return ["Verified – critical","b-bad"]; if(i.stock < i.thr) return ["Verified – low","b-warn"]; return ["Verified – OK","b-ok"]; }
+function lowItems(){ return inv.filter(i=>i.stock<i.thr); }
+
+function renderInv(){
+  document.querySelector("#invTable tbody").innerHTML = inv.map(i=>{
+    const [t,c]=status(i);
+    return `<tr><td>${i.item}</td><td>${i.stock}</td><td>${i.thr}</td><td>${i.cost.toFixed(2)}</td><td style="color:var(--muted)">${i.upd}</td><td><span class="badge ${c}">${t}</span></td></tr>`;
+  }).join("");
+  const sel=document.getElementById("reqItem");
+  if(!sel.options.length) sel.innerHTML = inv.map(i=>`<option>${i.item}</option>`).join("");
+}
+function renderOrders(){
+  document.querySelector("#aprTable tbody").innerHTML = orders.map(o=>{
+    const c = o.status==="Received"?"b-ok":o.status==="Ordered"?"b-blue":o.status==="Auto-approved"?"b-blue":o.status==="Rejected"?"b-bad":"b-warn";
+    let btns = "";
+    if(o.status==="Pending") btns = `<button class="btn btn-sm" onclick="decide(${o.id},true)">Approve</button> <button class="btn btn-sm btn-ghost" onclick="decide(${o.id},false)">Reject</button>`;
+    if(o.status==="Ordered") btns = `<button class="btn btn-sm" onclick="confirmReceipt(${o.id})">Confirm receipt</button>`;
+    return `<tr><td>${o.id}</td><td>${o.item}</td><td>${o.qty}</td><td>€${o.value.toFixed(0)}</td><td>${o.approver}</td><td><span class="badge ${c}">${o.status}</span></td><td>${btns}</td></tr>`;
+  }).join("");
+}
+function log(msg){
+  feed.unshift({t:new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), msg});
+  document.getElementById("feed").innerHTML = feed.map(f=>`<li><span class="t">${f.t}</span> — ${f.msg}</li>`).join("");
+}
+function submitRequest(){
+  const name = document.getElementById("reqItem").value;
+  const qty = Math.max(1, +document.getElementById("reqQty").value||1);
+  const by = document.getElementById("reqBy").value;
+  const it = inv.find(i=>i.item===name);
+  const value = qty*it.cost;
+  let approver, st;
+  if(value < 100){ approver="— (auto)"; st="Auto-approved"; }
+  else if(value < 500){ approver="Office Manager"; st="Pending"; }
+  else { approver="Cost Center Owner"; st="Pending"; }
+  const o = {id:nextId++, item:name, qty, value, approver, status:st, date:"2026-07-17"};
+  orders.push(o); renderOrders();
+  log(`📨 Request #${o.id} by ${by}: ${qty}× ${name} (€${value.toFixed(0)}) → ${st}${st==="Pending"?" · approval sent to "+approver+" via Teams":""}`);
+  if(st==="Auto-approved") placeOrder(o);
+}
+function decide(id, ok){
+  const o = orders.find(x=>x.id===id);
+  if(!ok){ o.status="Rejected"; renderOrders(); log(`❌ Order #${id} rejected by ${o.approver} · audit entry written`); return; }
+  log(`✅ Order #${id} approved by ${o.approver} · audit entry written`);
+  placeOrder(o);
+}
+function placeOrder(o){
+  o.status = "Ordered"; renderOrders();
+  document.getElementById("mailHead").innerHTML =
+    `<b>From:</b> pantry-orders@company.com (dedicated connection identity)<br><b>To:</b> orders@office-supplies-gmbh.de<br><b>Subject:</b> Purchase Order PO-2026-${o.id} — Pantry supplies`;
+  document.getElementById("mailBody").innerHTML =
+    `Dear Supplier,<br><br>please deliver the following items to <b>Main Office, Reception</b>:
+     <table><thead><tr><th>Item</th><th>Qty</th><th>Unit €</th><th>Total €</th></tr></thead>
+     <tbody><tr><td>${o.item}</td><td>${o.qty}</td><td>${(o.value/o.qty).toFixed(2)}</td><td>${o.value.toFixed(2)}</td></tr></tbody></table>
+     Requested delivery date: <b>within 3 business days</b>.<br>Please confirm by replying to this email referencing <b>PO-2026-${o.id}</b>.<br><br>Kind regards<br>Automated Pantry Ordering — on behalf of Office Management`;
+  document.getElementById("mailOverlay").classList.add("show");
+  log(`📤 PO-2026-${o.id} sent to supplier (Flow 3) · order status → Ordered · requester notified`);
+}
+function confirmReceipt(id){
+  const o = orders.find(x=>x.id===id);
+  o.status = "Received";
+  const it = inv.find(i=>i.item===o.item);
+  if(it){ it.stock += o.qty; it.upd = "Just now · A. Roth"; }
+  renderInv(); renderOrders();
+  log(`📦 PO-2026-${id} receipt confirmed by Office Manager · ${o.qty}× ${o.item} added to stock (new: ${it?it.stock:"?"}) · audit entry written · requester &amp; approver notified`);
+}
+/* Read-only assistant */
+function ask(q){
+  const inp = document.getElementById("chatIn");
+  q = q || inp.value.trim(); if(!q) return; inp.value="";
+  addMsg(q,"user");
+  setTimeout(()=>addMsg(answer(q.toLowerCase()),"bot"), 350);
+}
+function addMsg(t,who){
+  const d=document.createElement("div"); d.className="msg "+who; d.textContent=t;
+  const log=document.getElementById("chatlog"); log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
+function answer(q){
+  if(q.includes("coffee")){ const i=inv.find(x=>x.item.toLowerCase().includes("coffee")); const o=orders.find(o=>o.item.includes("Coffee")); return `☕ Coffee beans: ${i.stock} units in stock (reorder point: ${i.thr}). Status: ${status(i)[0]}. Order #${o.id} for ${o.qty} units is currently "${o.status}".`; }
+  if(q.includes("last order")){ const o=orders[orders.length-1]; return `📦 The most recent order is #${o.id}: ${o.qty}× ${o.item} (€${o.value.toFixed(0)}), status "${o.status}", approver: ${o.approver}.`; }
+  if(q.includes("low")||q.includes("reorder")||q.includes("below")){ const low=lowItems(); return low.length? `⚠️ ${low.length} item(s) below their reorder point:\n`+low.map(i=>`• ${i.item}: ${i.stock}/${i.thr}`).join("\n") : "✅ All items are at or above their reorder points."; }
+  if(q.includes("pending")||q.includes("approval")){ const p=orders.filter(o=>o.status==="Pending"); return p.length? `⏳ ${p.length} pending approval(s):\n`+p.map(o=>`• #${o.id} ${o.qty}× ${o.item} (€${o.value.toFixed(0)}) — waiting for ${o.approver}`).join("\n") : "✅ No pending approvals right now."; }
+  if(q.includes("order")&&(q.includes("place")||q.includes("buy")||q.includes("create"))){ return "🔒 I'm read-only in the MVP — I can't place orders or modify records. Please use the request form; ordering stays with the approval workflow."; }
+  if(q.includes("stock")){ return "📊 Current stock (stock/reorder point):\n"+inv.map(i=>`• ${i.item}: ${i.stock}/${i.thr}`).join("\n"); }
+  return "I can answer questions about stock levels, items below reorder point, recent orders and pending approvals — read-only, grounded on validated inventory and order data.";
+}
+/* tabs */
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  document.getElementById("tab-"+b.dataset.tab).classList.add("active");
+});
+renderInv(); renderOrders();
+log(`🔔 Flow 1 (daily low-stock check): ${lowItems().length} items below their reorder point — order proposals created`);
+log("✅ Order #1041 approved by Office Manager · PO-2026-1041 sent to supplier · status Ordered");
+</script>
+</body>
+</html>
