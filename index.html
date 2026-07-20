@@ -33,6 +33,7 @@
   .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11.5px;font-weight:600}
   .b-ok{background:#e6f4e6;color:var(--ok)} .b-warn{background:#fdf3e0;color:var(--warn)}
   .b-bad{background:#fde7e9;color:var(--bad)} .b-blue{background:#e5f1fb;color:var(--blue)}
+  .b-unv{background:#f0eef7;color:#5b4f8a}
   .verify{background:#e9f1f8;border:1px solid #c9dcec;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px;color:var(--ink)}
   label{display:block;font-size:12.5px;font-weight:600;margin:10px 0 4px}
   select,input{width:100%;padding:9px 10px;border:1px solid #b5b3b1;border-radius:6px;font-size:14px;font-family:inherit;background:#fff}
@@ -44,6 +45,13 @@
   .feed{list-style:none;font-size:12.5px;max-height:220px;overflow-y:auto}
   .feed li{padding:7px 0;border-bottom:1px dashed var(--line);line-height:1.45}
   .feed .t{color:var(--muted);font-size:11px}
+  /* role banner + lock */
+  .rolebar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:var(--radius);padding:10px 14px;font-size:12.5px;margin-bottom:16px;color:var(--muted)}
+  .rolebar b{color:var(--ink)}
+  .lockwrap{text-align:center;padding:52px 20px;background:#fff;border:1px solid var(--line);border-radius:var(--radius)}
+  .lockwrap .big{font-size:42px;line-height:1}
+  .lockwrap h2{font-size:16px;margin:14px 0 6px;justify-content:center}
+  .lockwrap p{font-size:12.5px;color:var(--muted);max-width:460px;margin:0 auto;line-height:1.55}
   /* chat */
   .chat{display:flex;flex-direction:column;height:420px}
   .chatlog{flex:1;overflow-y:auto;padding:6px 2px;display:flex;flex-direction:column;gap:10px}
@@ -84,16 +92,23 @@
   </div>
 </header>
 <nav>
-  <button class="active" data-tab="demo">📱 App Demo</button>
+  <button class="active" data-tab="team">👥 Team View</button>
+  <button data-tab="mgmt" id="navMgmt">🔒 Management</button>
+  <button data-tab="both">🔄 End-to-end demo</button>
   <button data-tab="arch">🏗 Architecture</button>
 </nav>
 <main>
 
-<!-- ================= DEMO ================= -->
-<section class="tab active" id="tab-demo">
+<!-- ================= TEAM VIEW ================= -->
+<section class="tab active" id="tab-team">
+  <div class="rolebar">
+    <span>👥</span>
+    <div><b>Team View — open to all employees.</b> Submit requests, track your own requests, read inventory, ask the assistant. Approvals, receipt confirmation and the audit history are not available in this role.</div>
+  </div>
+
   <div class="grid cols-2">
     <div class="card">
-      <h2><span class="dot"></span>Inventory (SharePoint list: <i>Inventory</i>)</h2>
+      <h2><span class="dot"></span>Inventory (SharePoint list: <i>Inventory</i>) — read-only</h2>
       <div class="verify">🕘 Inventory last verified: <b>17 Jul 2026, 09:15</b> by Office Management</div>
       <table id="invTable">
         <thead><tr><th>Item</th><th>Stock</th><th>Reorder point</th><th>Unit €</th><th>Last updated</th><th>Status</th></tr></thead>
@@ -105,47 +120,78 @@
     <div class="card">
       <h2><span class="dot"></span>New Supply Request (Power Apps form)</h2>
       <label for="reqItem">Item</label>
-      <select id="reqItem"></select>
+      <select id="reqItem" onchange="renderMine();checkUnverified()"></select>
+      <div id="unvNotice"></div>
       <label for="reqQty">Quantity (units)</label>
       <input type="number" id="reqQty" value="20" min="1">
       <label for="reqBy">Requested by</label>
-      <select id="reqBy"><option>Employee — M. Weber</option><option>Employee — S. Klein</option><option>Office Manager — A. Roth</option></select>
+      <select id="reqBy" onchange="renderMine()"><option>Employee — M. Weber</option><option>Employee — S. Klein</option><option>Office Manager — A. Roth</option></select>
       <button class="btn" onclick="submitRequest()">Submit request</button>
       <p class="hint"><b>Illustrative approval thresholds — configurable as data, not hard-coded:</b> &lt; €100 auto-approved · €100–499 → Office Manager · ≥ €500 → Cost Center Owner. Actual values are decided by the business owner.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2><span class="dot"></span>My requests — status <span id="mineWho" style="font-weight:400;color:var(--muted);font-size:12.5px"></span></h2>
+    <table id="mineTable">
+      <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Value</th><th>Approval band</th><th>Approver</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="hint">Requesters see status only. Approve, reject and receipt actions live in the Management view — the same data, filtered by role.</p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2><span class="dot"></span>Read-only Pantry Assistant — MVP</h2>
+    <div class="chat">
+      <div class="chatlog" id="chatlog">
+        <div class="msg bot">Hi! I answer questions about stock levels, orders and approvals — read-only, grounded on validated inventory and order data. I do not place orders or modify records. 👇</div>
+      </div>
+      <div class="chips">
+        <span class="chip" onclick="ask('Which items are below their reorder point?')">Below reorder point?</span>
+        <span class="chip" onclick="ask('What is the stock of coffee?')">Stock of coffee?</span>
+        <span class="chip" onclick="ask('Show previous orders of coffee beans')">Previous orders?</span>
+        <span class="chip" onclick="ask('Any pending approvals?')">Pending approvals?</span>
+      </div>
+      <div class="chatrow">
+        <input id="chatIn" placeholder="Ask about stock, orders, approvals…" onkeydown="if(event.key==='Enter')ask()">
+        <button class="btn btn-sm" style="margin:0" onclick="ask()">Send</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MANAGEMENT ================= -->
+<section class="tab" id="tab-mgmt">
+  <div id="lockScreen">
+    <div class="lockwrap">
+      <div class="big">🔒</div>
+      <h2>Management view — restricted</h2>
+      <p>Approvals, receipt confirmation and the audit history are limited to Office Management and Cost Center Owners via Entra ID role assignment.</p>
+      <button class="btn" onclick="toggleLock()">🔓 Unlock (simulated sign-in)</button>
+      <p class="hint" style="max-width:460px;margin:12px auto 0">Simulated UI state for demo purposes — no real authentication is performed in this prototype.</p>
+    </div>
+  </div>
+
+  <div id="mgmtContent" style="display:none">
+    <div class="rolebar">
+      <span>🔓</span>
+      <div><b>Signed in as Office Manager — A. Roth (simulated).</b> Approval queue, receipt confirmation and audit history are visible in this role.</div>
+      <button class="btn btn-sm btn-ghost" onclick="toggleLock()">Lock again</button>
     </div>
 
     <div class="card">
       <h2><span class="dot"></span>Approval &amp; order queue (Power Automate)</h2>
       <table id="aprTable">
-        <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Value</th><th>Approver</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Value</th><th>Approval band</th><th>Approver</th><th>Status</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
       <p class="hint">Approving an order generates the structured supplier email and sets the order to <b>Ordered</b>. <b>Confirm receipt</b> adds the delivered quantity to stock and writes the audit entry — closing the loop: request → approval → order → receipt → inventory update.</p>
     </div>
 
-    <div class="card">
-      <h2><span class="dot"></span>Read-only Pantry Assistant — MVP</h2>
-      <div class="chat">
-        <div class="chatlog" id="chatlog">
-          <div class="msg bot">Hi! I answer questions about stock levels, orders and approvals — read-only, grounded on validated inventory and order data. I do not place orders or modify records. 👇</div>
-        </div>
-        <div class="chips">
-          <span class="chip" onclick="ask('Which items are below their reorder point?')">Below reorder point?</span>
-          <span class="chip" onclick="ask('What is the stock of coffee?')">Stock of coffee?</span>
-          <span class="chip" onclick="ask('What was the last order?')">Last order?</span>
-          <span class="chip" onclick="ask('Any pending approvals?')">Pending approvals?</span>
-        </div>
-        <div class="chatrow">
-          <input id="chatIn" placeholder="Ask about stock, orders, approvals…" onkeydown="if(event.key==='Enter')ask()">
-          <button class="btn btn-sm" style="margin:0" onclick="ask()">Send</button>
-        </div>
-      </div>
+    <div class="card" style="margin-top:16px">
+      <h2><span class="dot"></span>Notifications &amp; audit history</h2>
+      <ul class="feed" id="feed"></ul>
     </div>
-  </div>
-
-  <div class="card" style="margin-top:16px">
-    <h2><span class="dot"></span>Notifications &amp; audit history</h2>
-    <ul class="feed" id="feed"></ul>
   </div>
 </section>
 
@@ -220,22 +266,39 @@
 
 <script>
 const inv = [
-  {item:"Coffee beans (1kg)", stock:4,  thr:10, cost:14.5, upd:"Today, 09:15"},
-  {item:"Oat milk (1L)",      stock:18, thr:12, cost:2.2,  upd:"Today, 09:15"},
-  {item:"Sparkling water (6-pack)", stock:9, thr:15, cost:3.9, upd:"Today, 09:15"},
-  {item:"Granola bars (box)", stock:22, thr:8,  cost:11.0, upd:"Yesterday, 16:40"},
-  {item:"Tea assortment (box)", stock:3, thr:6, cost:8.5,  upd:"Today, 09:15"},
-  {item:"Fresh fruit (crate)", stock:2, thr:5,  cost:24.0, upd:"Today, 09:15"},
+  {item:"Coffee beans (1kg)", stock:4,  thr:10, cost:14.5, upd:"Today, 09:15", verified:true},
+  {item:"Oat milk (1L)",      stock:18, thr:12, cost:2.2,  upd:"Today, 09:15", verified:true},
+  {item:"Sparkling water (6-pack)", stock:9, thr:15, cost:3.9, upd:"Today, 09:15", verified:true},
+  {item:"Granola bars (box)", stock:22, thr:8,  cost:11.0, upd:"Yesterday, 16:40", verified:true},
+  {item:"Tea assortment (box)", stock:3, thr:6, cost:8.5,  upd:"Today, 09:15", verified:true},
+  {item:"Fresh fruit (crate)", stock:2, thr:5,  cost:24.0, upd:"04 Jul 2026 · count disputed", verified:false},
 ];
 let orders = [
-  {id:1041, item:"Coffee beans (1kg)", qty:20, value:290, approver:"Office Manager", status:"Ordered", date:"2026-07-14"},
-  {id:1042, item:"Sparkling water (6-pack)", qty:30, value:117, approver:"Office Manager", status:"Pending", date:"2026-07-16"},
+  {id:1039, item:"Granola bars (box)", qty:8,  value:88,  approver:"— (auto)",          status:"Received", date:"2026-07-10", by:"Employee — M. Weber"},
+  {id:1041, item:"Coffee beans (1kg)", qty:20, value:290, approver:"Office Manager",    status:"Ordered",  date:"2026-07-14", by:"Employee — M. Weber"},
+  {id:1042, item:"Sparkling water (6-pack)", qty:30, value:117, approver:"Office Manager", status:"Pending", date:"2026-07-16", by:"Employee — S. Klein"},
+  {id:1043, item:"Tea assortment (box)", qty:70, value:595, approver:"Cost Center Owner", status:"Pending", date:"2026-07-17", by:"Employee — M. Weber"},
 ];
-let nextId = 1043;
+let nextId = 1044;
 const feed = [];
+let mgmtUnlocked = false;
 
-function status(i){ if(i.stock < i.thr*0.5) return ["Verified – critical","b-bad"]; if(i.stock < i.thr) return ["Verified – low","b-warn"]; return ["Verified – OK","b-ok"]; }
-function lowItems(){ return inv.filter(i=>i.stock<i.thr); }
+/* ---------- approval bands (configurable as data, not hard-coded) ---------- */
+const BANDS = [
+  {max:100,      label:"Auto · < €100",        approver:"— (auto)"},
+  {max:500,      label:"Office Mgr · €100–499", approver:"Office Manager"},
+  {max:Infinity, label:"Cost Center · ≥ €500",  approver:"Cost Center Owner"}
+];
+function band(value){ return BANDS.find(b=>value < b.max); }
+
+function status(i){
+  if(!i.verified) return ["Unverified — assisted","b-unv"];
+  if(i.stock < i.thr*0.5) return ["Verified – critical","b-bad"];
+  if(i.stock < i.thr) return ["Verified – low","b-warn"];
+  return ["Verified – OK","b-ok"];
+}
+function lowItems(){ return inv.filter(i=>i.stock<i.thr && i.verified); }
+function unverifiedItems(){ return inv.filter(i=>!i.verified); }
 
 function renderInv(){
   document.querySelector("#invTable tbody").innerHTML = inv.map(i=>{
@@ -245,14 +308,33 @@ function renderInv(){
   const sel=document.getElementById("reqItem");
   if(!sel.options.length) sel.innerHTML = inv.map(i=>`<option>${i.item}</option>`).join("");
 }
-function renderOrders(){
-  document.querySelector("#aprTable tbody").innerHTML = orders.map(o=>{
-    const c = o.status==="Received"?"b-ok":o.status==="Ordered"?"b-blue":o.status==="Auto-approved"?"b-blue":o.status==="Rejected"?"b-bad":"b-warn";
-    let btns = "";
+function rowHtml(o, withActions){
+  const c = o.status==="Received"?"b-ok":o.status==="Ordered"?"b-blue":o.status==="Auto-approved"?"b-blue":o.status==="Rejected"?"b-bad":"b-warn";
+  let btns = "";
+  if(withActions){
     if(o.status==="Pending") btns = `<button class="btn btn-sm" onclick="decide(${o.id},true)">Approve</button> <button class="btn btn-sm btn-ghost" onclick="decide(${o.id},false)">Reject</button>`;
-    if(o.status==="Ordered") btns = `<button class="btn btn-sm" onclick="confirmReceipt(${o.id})">Confirm receipt</button>`;
-    return `<tr><td>${o.id}</td><td>${o.item}</td><td>${o.qty}</td><td>€${o.value.toFixed(0)}</td><td>${o.approver}</td><td><span class="badge ${c}">${o.status}</span></td><td>${btns}</td></tr>`;
-  }).join("");
+    if(o.status==="Ordered") btns = `<button class="btn btn-sm" onclick="confirmReceipt(${o.id})">Confirm receipt</button> <button class="btn btn-sm btn-ghost" onclick="showMail(${o.id})">View supplier email</button>`;
+    if(o.status==="Received") btns = `<button class="btn btn-sm btn-ghost" onclick="showMail(${o.id})">View supplier email</button>`;
+  }
+  return `<tr><td>${o.id}</td><td>${o.item}</td><td>${o.qty}</td><td>€${o.value.toFixed(0)}</td><td><span class="badge b-blue">${band(o.value).label}</span></td><td>${o.approver}</td><td><span class="badge ${c}">${o.status}</span></td>${withActions?`<td>${btns}</td>`:""}</tr>`;
+}
+function renderOrders(){
+  document.querySelector("#aprTable tbody").innerHTML = orders.map(o=>rowHtml(o,true)).join("");
+  renderMine();
+}
+function renderMine(){
+  const who = document.getElementById("reqBy").value;
+  document.getElementById("mineWho").textContent = "· " + who;
+  const mine = orders.filter(o=>o.by===who);
+  document.querySelector("#mineTable tbody").innerHTML = mine.length
+    ? mine.map(o=>rowHtml(o,false)).join("")
+    : `<tr><td colspan="7" style="color:var(--muted)">No requests submitted yet.</td></tr>`;
+}
+function checkUnverified(){
+  const it = inv.find(i=>i.item===document.getElementById("reqItem").value);
+  document.getElementById("unvNotice").innerHTML = (it && !it.verified)
+    ? `<div class="verify" style="background:#f5f2fa;border-color:#ddd6ea;margin-top:10px">⚠️ <b>${it.item}</b> is currently <b>unverified</b> — stock count disputed since 04 Jul. Automation degrades to <b>assisted ordering</b>: the request is created, but a human stock check is required before approval.</div>`
+    : "";
 }
 function log(msg){
   feed.unshift({t:new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}), msg});
@@ -264,13 +346,13 @@ function submitRequest(){
   const by = document.getElementById("reqBy").value;
   const it = inv.find(i=>i.item===name);
   const value = qty*it.cost;
-  let approver, st;
-  if(value < 100){ approver="— (auto)"; st="Auto-approved"; }
-  else if(value < 500){ approver="Office Manager"; st="Pending"; }
-  else { approver="Cost Center Owner"; st="Pending"; }
-  const o = {id:nextId++, item:name, qty, value, approver, status:st, date:"2026-07-17"};
+  const b = band(value);
+  let st = (b.approver === "— (auto)") ? "Auto-approved" : "Pending";
+  if(!it.verified && st==="Auto-approved"){ st="Pending"; }
+  const o = {id:nextId++, item:name, qty, value, approver:(!it.verified && b.approver==="— (auto)")?"Office Manager (verification)":b.approver, status:st, date:"2026-07-17", by};
   orders.push(o); renderOrders();
-  log(`📨 Request #${o.id} by ${by}: ${qty}× ${name} (€${value.toFixed(0)}) → ${st}${st==="Pending"?" · approval sent to "+approver+" via Teams":""}`);
+  log(`📨 Request #${o.id} by ${by}: ${qty}× ${name} (€${value.toFixed(0)}) · band: ${b.label} → ${st}${st==="Pending"?" · approval sent to "+o.approver+" via Teams":""}`);
+  if(!it.verified) log(`⚠️ ${name} is unverified — automation degraded to assisted ordering, human stock check required before approval`);
   if(st==="Auto-approved") placeOrder(o);
 }
 function decide(id, ok){
@@ -279,27 +361,43 @@ function decide(id, ok){
   log(`✅ Order #${id} approved by ${o.approver} · audit entry written`);
   placeOrder(o);
 }
-function placeOrder(o){
-  o.status = "Ordered"; renderOrders();
-  document.getElementById("mailHead").innerHTML =
-    `<b>From:</b> pantry-orders@company.com (dedicated connection identity)<br><b>To:</b> orders@office-supplies-gmbh.de<br><b>Subject:</b> Purchase Order PO-2026-${o.id} — Pantry supplies`;
-  document.getElementById("mailBody").innerHTML =
-    `Dear Supplier,<br><br>please deliver the following items to <b>Main Office, Reception</b>:
+function mailFor(o){
+  return {
+    head:`<b>From:</b> pantry-orders@company.com (dedicated connection identity)<br><b>To:</b> orders@office-supplies-gmbh.de<br><b>Subject:</b> Purchase Order PO-2026-${o.id} — Pantry supplies`,
+    body:`Dear Supplier,<br><br>please deliver the following items to <b>Main Office, Reception</b>:
      <table><thead><tr><th>Item</th><th>Qty</th><th>Unit €</th><th>Total €</th></tr></thead>
      <tbody><tr><td>${o.item}</td><td>${o.qty}</td><td>${(o.value/o.qty).toFixed(2)}</td><td>${o.value.toFixed(2)}</td></tr></tbody></table>
-     Requested delivery date: <b>within 3 business days</b>.<br>Please confirm by replying to this email referencing <b>PO-2026-${o.id}</b>.<br><br>Kind regards<br>Automated Pantry Ordering — on behalf of Office Management`;
+     Requested delivery date: <b>within 3 business days</b>.<br>Please confirm by replying to this email referencing <b>PO-2026-${o.id}</b>.<br><br>Kind regards<br>Automated Pantry Ordering — on behalf of Office Management`
+  };
+}
+function showMail(id){
+  const o = orders.find(x=>x.id===id); if(!o) return;
+  const m = mailFor(o);
+  document.getElementById("mailHead").innerHTML = m.head;
+  document.getElementById("mailBody").innerHTML = m.body;
   document.getElementById("mailOverlay").classList.add("show");
+}
+function placeOrder(o){
+  o.status = "Ordered"; renderOrders();
+  showMail(o.id);
   log(`📤 PO-2026-${o.id} sent to supplier (Flow 3) · order status → Ordered · requester notified`);
 }
 function confirmReceipt(id){
   const o = orders.find(x=>x.id===id);
   o.status = "Received";
   const it = inv.find(i=>i.item===o.item);
-  if(it){ it.stock += o.qty; it.upd = "Just now · A. Roth"; }
+  if(it){ it.stock += o.qty; it.upd = "Just now · A. Roth"; it.verified = true; }
   renderInv(); renderOrders();
   log(`📦 PO-2026-${id} receipt confirmed by Office Manager · ${o.qty}× ${o.item} added to stock (new: ${it?it.stock:"?"}) · audit entry written · requester &amp; approver notified`);
 }
-/* Read-only assistant */
+/* ---------- lock: simulated UI state only, no real authentication ---------- */
+function toggleLock(){
+  mgmtUnlocked = !mgmtUnlocked;
+  document.getElementById("lockScreen").style.display  = mgmtUnlocked ? "none"  : "block";
+  document.getElementById("mgmtContent").style.display = mgmtUnlocked ? "block" : "none";
+  document.getElementById("navMgmt").textContent = (mgmtUnlocked ? "🔓" : "🔒") + " Management";
+}
+/* ---------- read-only assistant ---------- */
 function ask(q){
   const inp = document.getElementById("chatIn");
   q = q || inp.value.trim(); if(!q) return; inp.value="";
@@ -311,24 +409,44 @@ function addMsg(t,who){
   const log=document.getElementById("chatlog"); log.appendChild(d); log.scrollTop=log.scrollHeight;
 }
 function answer(q){
+  if(q.includes("previous")||q.includes("history")||q.includes("past order")){
+    const key = q.includes("coffee")?"Coffee":q.includes("water")?"Sparkling":q.includes("granola")?"Granola":q.includes("tea")?"Tea":"Coffee";
+    const hist = orders.filter(o=>o.item.includes(key));
+    return hist.length ? `📜 Previous orders for ${key}:\n`+hist.map(o=>`• #${o.id} · ${o.date} · ${o.qty} units · €${o.value.toFixed(0)} · ${o.status} · approved via ${band(o.value).label}`).join("\n") : `No previous orders found for ${key}.`;
+  }
+  if(q.includes("unverified")||q.includes("verified")){ const u=unverifiedItems(); return u.length? `⚠️ ${u.length} item(s) currently unverified — automation is degraded to assisted ordering:\n`+u.map(i=>`• ${i.item}: last reliable update ${i.upd}`).join("\n") : "✅ All inventory items are verified."; }
   if(q.includes("coffee")){ const i=inv.find(x=>x.item.toLowerCase().includes("coffee")); const o=orders.find(o=>o.item.includes("Coffee")); return `☕ Coffee beans: ${i.stock} units in stock (reorder point: ${i.thr}). Status: ${status(i)[0]}. Order #${o.id} for ${o.qty} units is currently "${o.status}".`; }
   if(q.includes("last order")){ const o=orders[orders.length-1]; return `📦 The most recent order is #${o.id}: ${o.qty}× ${o.item} (€${o.value.toFixed(0)}), status "${o.status}", approver: ${o.approver}.`; }
-  if(q.includes("low")||q.includes("reorder")||q.includes("below")){ const low=lowItems(); return low.length? `⚠️ ${low.length} item(s) below their reorder point:\n`+low.map(i=>`• ${i.item}: ${i.stock}/${i.thr}`).join("\n") : "✅ All items are at or above their reorder points."; }
-  if(q.includes("pending")||q.includes("approval")){ const p=orders.filter(o=>o.status==="Pending"); return p.length? `⏳ ${p.length} pending approval(s):\n`+p.map(o=>`• #${o.id} ${o.qty}× ${o.item} (€${o.value.toFixed(0)}) — waiting for ${o.approver}`).join("\n") : "✅ No pending approvals right now."; }
+  if(q.includes("low")||q.includes("reorder")||q.includes("below")){ const low=lowItems(); const u=unverifiedItems(); let s = low.length? `⚠️ ${low.length} verified item(s) below their reorder point:\n`+low.map(i=>`• ${i.item}: ${i.stock}/${i.thr}`).join("\n") : "✅ All verified items are at or above their reorder points."; if(u.length) s += `\n\nℹ️ ${u.map(i=>i.item).join(", ")} excluded — unverified, assisted ordering applies.`; return s; }
+  if(q.includes("pending")||q.includes("approval")){ const p=orders.filter(o=>o.status==="Pending"); return p.length? `⏳ ${p.length} pending approval(s):\n`+p.map(o=>`• #${o.id} ${o.qty}× ${o.item} (€${o.value.toFixed(0)}) — waiting for ${o.approver} · ${band(o.value).label}`).join("\n") : "✅ No pending approvals right now."; }
   if(q.includes("order")&&(q.includes("place")||q.includes("buy")||q.includes("create"))){ return "🔒 I'm read-only in the MVP — I can't place orders or modify records. Please use the request form; ordering stays with the approval workflow."; }
-  if(q.includes("stock")){ return "📊 Current stock (stock/reorder point):\n"+inv.map(i=>`• ${i.item}: ${i.stock}/${i.thr}`).join("\n"); }
+  if(q.includes("stock")){ return "📊 Current stock (stock/reorder point):\n"+inv.map(i=>`• ${i.item}: ${i.stock}/${i.thr}${i.verified?"":" (unverified)"}`).join("\n"); }
   return "I can answer questions about stock levels, items below reorder point, recent orders and pending approvals — read-only, grounded on validated inventory and order data.";
 }
-/* tabs */
+/* ---------- tabs ---------- */
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
-  document.getElementById("tab-"+b.dataset.tab).classList.add("active");
+  const t = b.dataset.tab;
+  if(t==="both"){
+    document.getElementById("tab-team").classList.add("active");
+    document.getElementById("tab-mgmt").classList.add("active");
+  } else {
+    document.getElementById("tab-"+t).classList.add("active");
+  }
 });
-renderInv(); renderOrders();
-log(`🔔 Flow 1 (daily low-stock check): ${lowItems().length} items below their reorder point — order proposals created`);
+/* ---------- init ---------- */
+renderInv(); renderOrders(); checkUnverified();
+log(`🔔 Flow 1 (daily low-stock check): ${lowItems().length} verified items below their reorder point — order proposals created`);
+log(`⚠️ Fresh fruit (crate) excluded from automatic proposals — unverified stock data, assisted ordering applies`);
 log("✅ Order #1041 approved by Office Manager · PO-2026-1041 sent to supplier · status Ordered");
+log("📦 PO-2026-1039 (€88, auto-approved below threshold) received · 8× Granola bars added to stock · audit entry written");
+/* pre-filled assistant examples */
+addMsg("Which items are below their reorder point?","user");
+addMsg(answer("which items are below their reorder point?"),"bot");
+addMsg("Show previous orders of coffee beans","user");
+addMsg(answer("show previous orders of coffee beans"),"bot");
 </script>
 </body>
 </html>
