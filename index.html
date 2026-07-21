@@ -127,7 +127,7 @@
       <label for="reqBy">Requested by</label>
       <select id="reqBy" onchange="renderMine()"><option>Employee — M. Weber</option><option>Employee — S. Klein</option><option>Office Manager — A. Roth</option></select>
       <button class="btn" onclick="submitRequest()">Submit request</button>
-      <p class="hint"><b>Illustrative approval thresholds — configurable as data, not hard-coded:</b> &lt; €100 auto-approved · €100–499 → Office Manager · ≥ €500 → Cost Center Owner. Actual values are decided by the business owner.</p>
+      <p class="hint"><b>Illustrative approval thresholds — configurable as data, not hard-coded:</b> &lt; €500 → Office Manager · ≥ €500 → Cost Center Owner. Every proposal needs a human approval — no auto-ordering. Actual values are decided by the business owner.</p>
     </div>
   </div>
 
@@ -212,7 +212,7 @@
       <h3>2 · Automation — Power Automate</h3>
       <div class="boxes">
         <div class="box"><b>Flow 1 · Low-stock detection</b>Scheduled daily · stock &lt; reorder point → order proposal</div>
-        <div class="box"><b>Flow 2 · Approval routing</b>Threshold-based: auto / Office Mgr / Cost Center Owner — thresholds configurable as data</div>
+        <div class="box"><b>Flow 2 · Approval routing</b>Threshold-based: Office Mgr / Cost Center Owner (human approval always) — thresholds configurable as data</div>
         <div class="box"><b>Flow 3 · Supplier order</b>Structured PO email with order table &amp; PO number</div>
         <div class="box"><b>Flow 4 · Receipt &amp; stock update</b>Confirmation → stock += qty · audit entry</div>
       </div>
@@ -274,10 +274,10 @@ const inv = [
   {item:"Fresh fruit (crate)", stock:2, thr:5,  cost:24.0, upd:"04 Jul 2026 · count disputed", verified:false},
 ];
 let orders = [
-  {id:1039, item:"Granola bars (box)", qty:8,  value:88,  approver:"— (auto)",          status:"Received", date:"2026-07-10", by:"Employee — M. Weber"},
+  {id:1039, item:"Granola bars (box)", qty:8,  value:88,  approver:"Office Manager",     status:"Received", date:"2026-07-10", by:"Employee — M. Weber"},
   {id:1041, item:"Coffee beans (1kg)", qty:20, value:290, approver:"Office Manager",    status:"Ordered",  date:"2026-07-14", by:"Employee — M. Weber"},
-  {id:1042, item:"Sparkling water (6-pack)", qty:30, value:117, approver:"Office Manager", status:"Pending", date:"2026-07-16", by:"Employee — S. Klein"},
-  {id:1043, item:"Tea assortment (box)", qty:70, value:595, approver:"Cost Center Owner", status:"Pending", date:"2026-07-17", by:"Employee — M. Weber"},
+  {id:1042, item:"Sparkling water (6-pack)", qty:30, value:117, approver:"Office Manager", status:"Draft — awaiting Office Mgr", date:"2026-07-16", by:"Employee — S. Klein"},
+  {id:1043, item:"Tea assortment (box)", qty:70, value:595, approver:"Cost Center Owner", status:"Awaiting Cost Center Owner", date:"2026-07-17", by:"Employee — M. Weber"},
 ];
 let nextId = 1044;
 const feed = [];
@@ -285,9 +285,8 @@ let mgmtUnlocked = false;
 
 /* ---------- approval bands (configurable as data, not hard-coded) ---------- */
 const BANDS = [
-  {max:100,      label:"Auto · < €100",        approver:"— (auto)"},
-  {max:500,      label:"Office Mgr · €100–499", approver:"Office Manager"},
-  {max:Infinity, label:"Cost Center · ≥ €500",  approver:"Cost Center Owner"}
+  {max:500,      label:"Office Mgr · < €500",  approver:"Office Manager"},
+  {max:Infinity, label:"Cost Center · ≥ €500", approver:"Cost Center Owner"}
 ];
 function band(value){ return BANDS.find(b=>value < b.max); }
 
@@ -309,10 +308,12 @@ function renderInv(){
   if(!sel.options.length) sel.innerHTML = inv.map(i=>`<option>${i.item}</option>`).join("");
 }
 function rowHtml(o, withActions){
-  const c = o.status==="Received"?"b-ok":o.status==="Ordered"?"b-blue":o.status==="Auto-approved"?"b-blue":o.status==="Rejected"?"b-bad":"b-warn";
+  const c = o.status==="Received"?"b-ok":o.status==="Ordered"?"b-blue":o.status==="Approved — ready to send"?"b-blue":o.status==="Rejected"?"b-bad":"b-warn";
   let btns = "";
   if(withActions){
-    if(o.status==="Pending") btns = `<button class="btn btn-sm" onclick="decide(${o.id},true)">Approve</button> <button class="btn btn-sm btn-ghost" onclick="decide(${o.id},false)">Reject</button>`;
+    if(o.status==="Draft — awaiting Office Mgr") btns = `<button class="btn btn-sm" onclick="decide(${o.id},true)">Approve &amp; send</button> <button class="btn btn-sm btn-ghost" onclick="decide(${o.id},false)">Reject</button>`;
+    if(o.status==="Awaiting Cost Center Owner") btns = `<button class="btn btn-sm" onclick="decide(${o.id},true)">Approve (Cost Center Owner)</button> <button class="btn btn-sm btn-ghost" onclick="decide(${o.id},false)">Reject</button>`;
+    if(o.status==="Approved — ready to send") btns = `<button class="btn btn-sm" onclick="sendOrder(${o.id})">Send order (Office Mgr)</button>`;
     if(o.status==="Ordered") btns = `<button class="btn btn-sm" onclick="confirmReceipt(${o.id})">Confirm receipt</button> <button class="btn btn-sm btn-ghost" onclick="showMail(${o.id})">View supplier email</button>`;
     if(o.status==="Received") btns = `<button class="btn btn-sm btn-ghost" onclick="showMail(${o.id})">View supplier email</button>`;
   }
@@ -347,18 +348,35 @@ function submitRequest(){
   const it = inv.find(i=>i.item===name);
   const value = qty*it.cost;
   const b = band(value);
-  let st = (b.approver === "— (auto)") ? "Auto-approved" : "Pending";
-  if(!it.verified && st==="Auto-approved"){ st="Pending"; }
-  const o = {id:nextId++, item:name, qty, value, approver:(!it.verified && b.approver==="— (auto)")?"Office Manager (verification)":b.approver, status:st, date:"2026-07-17", by};
+  const needsCCO = (b.approver === "Cost Center Owner");
+  const initStatus = needsCCO ? "Awaiting Cost Center Owner" : "Draft — awaiting Office Mgr";
+  const o = {id:nextId++, item:name, qty, value, approver:b.approver, status:initStatus, date:"2026-07-17", by};
   orders.push(o); renderOrders();
-  log(`📨 Request #${o.id} by ${by}: ${qty}× ${name} (€${value.toFixed(0)}) · band: ${b.label} → ${st}${st==="Pending"?" · approval sent to "+o.approver+" via Teams":""}`);
+  log(`📨 Draft #${o.id} by ${by}: ${qty}× ${name} (€${value.toFixed(0)}) · band: ${b.label} — system prepared a proposal, no order placed yet`);
+  log(`📧 Office Management notified (Teams/Outlook): draft #${o.id} needs review — we are below reorder point`);
+  if(needsCCO) log(`📧 Draft #${o.id} exceeds €500 — Cost Center Owner also notified for approval`);
   if(!it.verified) log(`⚠️ ${name} is unverified — automation degraded to assisted ordering, human stock check required before approval`);
-  if(st==="Auto-approved") placeOrder(o);
 }
 function decide(id, ok){
   const o = orders.find(x=>x.id===id);
-  if(!ok){ o.status="Rejected"; renderOrders(); log(`❌ Order #${id} rejected by ${o.approver} · audit entry written`); return; }
-  log(`✅ Order #${id} approved by ${o.approver} · audit entry written`);
+  if(!ok){
+    o.status="Rejected"; renderOrders();
+    log(`❌ Draft #${id} rejected by ${o.approver} · audit entry written · requester notified · closed (new need = new proposal)`);
+    return;
+  }
+  if(o.status==="Awaiting Cost Center Owner"){
+    o.status="Approved — ready to send"; renderOrders();
+    log(`✅ Draft #${id} approved by Cost Center Owner · audit entry written`);
+    log(`📧 Office Management notified: draft #${id} is approved and ready to send`);
+    return;
+  }
+  // small case: Office Manager approves and sends in one step
+  o.status="Approved — ready to send"; renderOrders();
+  log(`✅ Draft #${id} approved by Office Manager · audit entry written`);
+  sendOrder(id);
+}
+function sendOrder(id){
+  const o = orders.find(x=>x.id===id);
   placeOrder(o);
 }
 function mailFor(o){
@@ -418,7 +436,7 @@ function answer(q){
   if(q.includes("coffee")){ const i=inv.find(x=>x.item.toLowerCase().includes("coffee")); const o=orders.find(o=>o.item.includes("Coffee")); return `☕ Coffee beans: ${i.stock} units in stock (reorder point: ${i.thr}). Status: ${status(i)[0]}. Order #${o.id} for ${o.qty} units is currently "${o.status}".`; }
   if(q.includes("last order")){ const o=orders[orders.length-1]; return `📦 The most recent order is #${o.id}: ${o.qty}× ${o.item} (€${o.value.toFixed(0)}), status "${o.status}", approver: ${o.approver}.`; }
   if(q.includes("low")||q.includes("reorder")||q.includes("below")){ const low=lowItems(); const u=unverifiedItems(); let s = low.length? `⚠️ ${low.length} verified item(s) below their reorder point:\n`+low.map(i=>`• ${i.item}: ${i.stock}/${i.thr}`).join("\n") : "✅ All verified items are at or above their reorder points."; if(u.length) s += `\n\nℹ️ ${u.map(i=>i.item).join(", ")} excluded — unverified, assisted ordering applies.`; return s; }
-  if(q.includes("pending")||q.includes("approval")){ const p=orders.filter(o=>o.status==="Pending"); return p.length? `⏳ ${p.length} pending approval(s):\n`+p.map(o=>`• #${o.id} ${o.qty}× ${o.item} (€${o.value.toFixed(0)}) — waiting for ${o.approver} · ${band(o.value).label}`).join("\n") : "✅ No pending approvals right now."; }
+  if(q.includes("pending")||q.includes("approval")){ const p=orders.filter(o=>["Draft — awaiting Office Mgr","Awaiting Cost Center Owner","Approved — ready to send"].includes(o.status)); return p.length? `⏳ ${p.length} pending approval(s):\n`+p.map(o=>`• #${o.id} ${o.qty}× ${o.item} (€${o.value.toFixed(0)}) — waiting for ${o.approver} · ${band(o.value).label}`).join("\n") : "✅ No pending approvals right now."; }
   if(q.includes("order")&&(q.includes("place")||q.includes("buy")||q.includes("create"))){ return "🔒 I'm read-only in the MVP — I can't place orders or modify records. Please use the request form; ordering stays with the approval workflow."; }
   if(q.includes("stock")){ return "📊 Current stock (stock/reorder point):\n"+inv.map(i=>`• ${i.item}: ${i.stock}/${i.thr}${i.verified?"":" (unverified)"}`).join("\n"); }
   return "I can answer questions about stock levels, items below reorder point, recent orders and pending approvals — read-only, grounded on validated inventory and order data.";
@@ -441,7 +459,7 @@ renderInv(); renderOrders(); checkUnverified();
 log(`🔔 Flow 1 (daily low-stock check): ${lowItems().length} verified items below their reorder point — order proposals created`);
 log(`⚠️ Fresh fruit (crate) excluded from automatic proposals — unverified stock data, assisted ordering applies`);
 log("✅ Order #1041 approved by Office Manager · PO-2026-1041 sent to supplier · status Ordered");
-log("📦 PO-2026-1039 (€88, auto-approved below threshold) received · 8× Granola bars added to stock · audit entry written");
+log("📦 PO-2026-1039 (€88, approved by Office Manager) received · 8× Granola bars added to stock · audit entry written");
 /* pre-filled assistant examples */
 addMsg("Which items are below their reorder point?","user");
 addMsg(answer("which items are below their reorder point?"),"bot");
